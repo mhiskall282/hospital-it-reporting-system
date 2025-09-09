@@ -18,7 +18,7 @@ const Navbar: React.FC = () => {
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                IT Operations
+                Hospital IT Operations {isAdmin && '(Admin)'}
               </h1>
             </div>
           </div>

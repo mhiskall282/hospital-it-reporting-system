@@ -9,7 +9,7 @@ import {
   ShieldCheckIcon,
   WrenchScrewdriverIcon
 } from '@heroicons/react/24/outline';
-import { supabase } from '../../lib/supabase';
+import { deviceService, requestService } from '../../services/firebaseService';
 import { useAuth } from '../../contexts/AuthContext';
 import FloatingActionButton from '../Layout/FloatingActionButton';
 import RequestModal from './RequestModal';
@@ -63,44 +63,48 @@ const UserDashboard: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch devices
-      const { data: devicesData } = await supabase
-        .from('devices')
-        .select(`
-          id, name, model, status, location, is_critical, compliance_status,
-          device_categories(name)
-        `);
-
-      // Fetch user's requests
-      const { data: requestsData } = await supabase
-        .from('requests')
-        .select(`
-          id, title, description, status, priority, urgency_level, patient_impact, created_at,
-          request_types(name)
-        `)
-        .eq('user_id', profile?.id)
-        .order('created_at', { ascending: false });
-
-      // Fetch departments
-      const { data: departmentsData } = await supabase
-        .from('departments')
-        .select('id, name, code, is_critical')
-        .order('name');
-
+      // Fetch devices from Firebase
+      const devicesData = await deviceService.getAllDevices();
       if (devicesData) {
         setDevices(devicesData.map((device: any) => ({
-          ...device,
-          category: device.device_categories?.name || 'Unknown'
+          id: device.id,
+          name: device.name,
+          model: device.model,
+          status: device.status,
+          category: device.category || 'Unknown',
+          location: device.location,
+          is_critical: device.isCritical || false,
+          compliance_status: device.complianceStatus || 'compliant'
         })));
       }
 
-      if (requestsData) {
-        setRequests(requestsData);
+      // Fetch user's requests from Firebase
+      if (profile?.id) {
+        const requestsData = await requestService.getUserRequests(profile.id);
+        if (requestsData) {
+          setRequests(requestsData.map((request: any) => ({
+            id: request.id,
+            title: request.title,
+            description: request.description,
+            status: request.status,
+            priority: request.priority || 'medium',
+            urgency_level: request.urgencyLevel || 'routine',
+            patient_impact: request.patientImpact || false,
+            created_at: request.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            request_types: { name: request.requestType || 'General Request' }
+          })));
+        }
       }
 
-      if (departmentsData) {
-        setDepartments(departmentsData);
-      }
+      // Mock departments data for now
+      setDepartments([
+        { id: '1', name: 'Emergency Department', code: 'ED', is_critical: true },
+        { id: '2', name: 'Intensive Care Unit', code: 'ICU', is_critical: true },
+        { id: '3', name: 'Radiology', code: 'RAD', is_critical: false },
+        { id: '4', name: 'Laboratory', code: 'LAB', is_critical: false },
+        { id: '5', name: 'Pharmacy', code: 'PHARM', is_critical: false },
+        { id: '6', name: 'Surgery', code: 'SURG', is_critical: true }
+      ]);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load dashboard data');

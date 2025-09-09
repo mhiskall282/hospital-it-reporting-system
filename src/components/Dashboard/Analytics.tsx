@@ -12,7 +12,8 @@ import {
   LineElement,
 } from 'chart.js';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
-import { supabase } from '../../lib/supabase';
+// import { supabase } from '../../lib/supabase'; // Commented out - using Firebase
+import { deviceService, requestService } from '../../services/firebaseService';
 
 ChartJS.register(
   CategoryScale,
@@ -56,93 +57,42 @@ const Analytics: React.FC = () => {
 
   const fetchAnalytics = async () => {
     try {
-      // Requests by type
-      const { data: requestTypes } = await supabase
-        .from('requests')
-        .select(`
-          request_type_id,
-          request_types!inner(name)
-        `);
+      // Fetch data from Firebase
+      const [devices, requests] = await Promise.all([
+        deviceService.getAllDevices(),
+        requestService.getAllRequests(),
+      ]);
 
-      const requestsByType = requestTypes?.reduce((acc: any, req: any) => {
-        const typeName = req.request_types.name;
+      // Process requests by type
+      const requestsByType = requests.reduce((acc: any, req: any) => {
+        const typeName = req.requestType || 'General Request';
         acc[typeName] = (acc[typeName] || 0) + 1;
         return acc;
       }, {});
 
-      // Requests by status
-      const { data: requestStatuses } = await supabase
-        .from('requests')
-        .select('status');
-
-      const requestsByStatus = requestStatuses?.reduce((acc: any, req: any) => {
+      // Process requests by status
+      const requestsByStatus = requests.reduce((acc: any, req: any) => {
         acc[req.status] = (acc[req.status] || 0) + 1;
         return acc;
       }, {});
 
-      // Requests by urgency
-      const { data: requestUrgencies } = await supabase
-        .from('requests')
-        .select('urgency_level');
-
-      const requestsByUrgency = requestUrgencies?.reduce((acc: any, req: any) => {
-        acc[req.urgency_level] = (acc[req.urgency_level] || 0) + 1;
+      // Process requests by urgency
+      const requestsByUrgency = requests.reduce((acc: any, req: any) => {
+        const urgency = req.urgencyLevel || 'routine';
+        acc[urgency] = (acc[urgency] || 0) + 1;
         return acc;
       }, {});
 
-      // Requests by department
-      const { data: requestDepartments } = await supabase
-        .from('requests')
-        .select(`
-          department_id,
-          departments(name)
-        `);
-
-      const requestsByDepartment = requestDepartments?.reduce((acc: any, req: any) => {
-        const deptName = req.departments?.name || 'Unassigned';
-        acc[deptName] = (acc[deptName] || 0) + 1;
-        return acc;
-      }, {});
-
-      // Devices by status
-      const { data: deviceStatuses } = await supabase
-        .from('devices')
-        .select('status');
-
-      const devicesByStatus = deviceStatuses?.reduce((acc: any, device: any) => {
+      // Process devices by status
+      const devicesByStatus = devices.reduce((acc: any, device: any) => {
         acc[device.status] = (acc[device.status] || 0) + 1;
         return acc;
       }, {});
 
-      // Compliance status
-      const { data: complianceStatuses } = await supabase
-        .from('devices')
-        .select('compliance_status');
-
-      const complianceStatus = complianceStatuses?.reduce((acc: any, device: any) => {
-        acc[device.compliance_status] = (acc[device.compliance_status] || 0) + 1;
-        return acc;
-      }, {});
-
-      // Incidents by severity
-      const { data: incidentSeverities } = await supabase
-        .from('incident_reports')
-        .select('severity');
-
-      const incidentsBySeverity = incidentSeverities?.reduce((acc: any, incident: any) => {
-        acc[incident.severity] = (acc[incident.severity] || 0) + 1;
-        return acc;
-      }, {});
-
-      // Requests over time (last 7 days)
-      const { data: recentRequests } = await supabase
-        .from('requests')
-        .select('created_at')
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
-      const requestsOverTime = recentRequests?.reduce((acc: any, req: any) => {
-        const date = new Date(req.created_at).toDateString();
-        acc[date] = (acc[date] || 0) + 1;
+      // Process compliance status
+      const complianceStatus = devices.reduce((acc: any, device: any) => {
+        const status = device.complianceStatus || 'compliant';
+        acc[status] = (acc[status] || 0) + 1;
         return acc;
       }, {});
 
@@ -159,10 +109,7 @@ const Analytics: React.FC = () => {
           urgency,
           count: count as number,
         })),
-        requestsByDepartment: Object.entries(requestsByDepartment || {}).map(([department, count]) => ({
-          department,
-          count: count as number,
-        })),
+        requestsByDepartment: [], // TODO: Implement departments in Firebase
         devicesByStatus: Object.entries(devicesByStatus || {}).map(([status, count]) => ({
           status,
           count: count as number,
@@ -171,14 +118,8 @@ const Analytics: React.FC = () => {
           status,
           count: count as number,
         })),
-        incidentsBySeverity: Object.entries(incidentsBySeverity || {}).map(([severity, count]) => ({
-          severity,
-          count: count as number,
-        })),
-        requestsOverTime: Object.entries(requestsOverTime || {}).map(([date, count]) => ({
-          date,
-          count: count as number,
-        })),
+        incidentsBySeverity: [], // TODO: Implement incidents in Firebase
+        requestsOverTime: [], // TODO: Implement time-based analytics
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);

@@ -7,7 +7,8 @@ import {
   Cog6ToothIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
-import { supabase } from '../../lib/supabase';
+// import { supabase } from '../../lib/supabase'; // Commented out - using Firebase
+import { deviceService, requestService, profileService } from '../../services/firebaseService';
 import Analytics from './Analytics';
 import UserManagement from './UserManagement';
 import DeviceManagement from './DeviceManagement';
@@ -53,32 +54,24 @@ const AdminDashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const [usersResult, devicesResult, requestsResult, maintenanceResult, incidentsResult] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact' }),
-        supabase.from('devices').select('id, status, is_critical, compliance_status', { count: 'exact' }),
-        supabase.from('requests').select('id, status, urgency_level', { count: 'exact' }),
-        supabase.from('maintenance_schedules').select('id, status, scheduled_date', { count: 'exact' }),
-        supabase.from('incident_reports').select('id, status', { count: 'exact' }),
+      // Fetch data from Firebase
+      const [users, devices, requests] = await Promise.all([
+        profileService.getAllProfiles(),
+        deviceService.getAllDevices(),
+        requestService.getAllRequests(),
       ]);
 
-      const devices = devicesResult.data || [];
-      const requests = requestsResult.data || [];
-      const maintenances = maintenanceResult.data || [];
-      const incidents = incidentsResult.data || [];
-
       setStats({
-        totalUsers: usersResult.count || 0,
-        totalDevices: devicesResult.count || 0,
-        pendingRequests: requests.filter(r => r.status === 'pending').length,
-        emergencyRequests: requests.filter(r => r.urgency_level === 'emergency' || r.urgency_level === 'critical').length,
-        activeDevices: devices.filter(d => d.status === 'active').length,
-        faultyDevices: devices.filter(d => d.status === 'faulty').length,
-        criticalDevices: devices.filter(d => d.is_critical).length,
-        complianceIssues: devices.filter(d => d.compliance_status !== 'compliant').length,
-        overdueMaintenances: maintenances.filter(m => 
-          m.status === 'scheduled' && new Date(m.scheduled_date) < new Date()
-        ).length,
-        openIncidents: incidents.filter(i => i.status === 'open' || i.status === 'investigating').length,
+        totalUsers: users.length,
+        totalDevices: devices.length,
+        pendingRequests: requests.filter((r: any) => r.status === 'pending').length,
+        emergencyRequests: requests.filter((r: any) => r.urgencyLevel === 'emergency' || r.urgencyLevel === 'critical').length,
+        activeDevices: devices.filter((d: any) => d.status === 'active').length,
+        faultyDevices: devices.filter((d: any) => d.status === 'faulty').length,
+        criticalDevices: devices.filter((d: any) => d.isCritical).length,
+        complianceIssues: devices.filter((d: any) => d.complianceStatus !== 'compliant').length,
+        overdueMaintenances: 0, // TODO: Implement maintenance in Firebase
+        openIncidents: 0, // TODO: Implement incidents in Firebase
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
