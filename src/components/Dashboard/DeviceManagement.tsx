@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { supabase } from '../../lib/supabase';
+// import { supabase } from '../../lib/supabase'; // Commented out - using Firebase
+import { deviceService, deviceCategoryService, profileService } from '../../services/firebaseService';
 import toast from 'react-hot-toast';
 
 interface Device {
   id: string;
   name: string;
   model: string | null;
-  serial_number: string | null;
+  serialNumber: string | null;
   status: 'active' | 'faulty' | 'maintenance' | 'retired';
-  category_id: string | null;
-  category_name?: string;
-  assigned_to: string | null;
-  assigned_user_name?: string;
-  purchase_date: string | null;
-  warranty_date: string | null;
+  categoryId: string | null;
+  categoryName?: string;
+  assignedTo: string | null;
+  assignedUserName?: string;
+  purchaseDate: string | null;
+  warrantyDate: string | null;
   notes: string | null;
 }
 
@@ -25,7 +26,7 @@ interface Category {
 
 interface User {
   id: string;
-  full_name: string;
+  fullName: string;
 }
 
 interface DeviceManagementProps {
@@ -42,12 +43,12 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
   const [formData, setFormData] = useState({
     name: '',
     model: '',
-    serial_number: '',
+    serialNumber: '',
     status: 'active' as 'active' | 'faulty' | 'maintenance' | 'retired',
-    category_id: '',
-    assigned_to: '',
-    purchase_date: '',
-    warranty_date: '',
+    categoryId: '',
+    assignedTo: '',
+    purchaseDate: '',
+    warrantyDate: '',
     notes: '',
   });
 
@@ -57,26 +58,27 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
 
   const fetchData = async () => {
     try {
-      const [devicesResult, categoriesResult, usersResult] = await Promise.all([
-        supabase.from('devices').select(`
-          *,
-          device_categories(name),
-          profiles(full_name)
-        `).order('created_at', { ascending: false }),
-        supabase.from('device_categories').select('*').order('name'),
-        supabase.from('profiles').select('id, full_name').order('full_name'),
+      const [devicesData, categoriesData, usersData] = await Promise.all([
+        deviceService.getAllDevices(),
+        deviceCategoryService.getAllCategories(),
+        profileService.getAllProfiles(),
       ]);
 
-      if (devicesResult.data) {
-        setDevices(devicesResult.data.map((device: any) => ({
+      if (devicesData) {
+        setDevices(devicesData.map((device: any) => ({
           ...device,
-          category_name: device.device_categories?.name,
-          assigned_user_name: device.profiles?.full_name,
+          serialNumber: device.serialNumber,
+          categoryId: device.categoryId,
+          assignedTo: device.assignedTo,
+          purchaseDate: device.purchaseDate,
+          warrantyDate: device.warrantyDate,
+          categoryName: device.categoryName,
+          assignedUserName: device.assignedUserName,
         })));
       }
 
-      if (categoriesResult.data) setCategories(categoriesResult.data);
-      if (usersResult.data) setUsers(usersResult.data);
+      if (categoriesData) setCategories(categoriesData);
+      if (usersData) setUsers(usersData.map((user: any) => ({ id: user.id, fullName: user.fullName })));
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load data');
@@ -93,25 +95,20 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
       const deviceData = {
         name: formData.name,
         model: formData.model || null,
-        serial_number: formData.serial_number || null,
+        serialNumber: formData.serialNumber || null,
         status: formData.status,
-        category_id: formData.category_id || null,
-        assigned_to: formData.assigned_to || null,
-        purchase_date: formData.purchase_date || null,
-        warranty_date: formData.warranty_date || null,
+        categoryId: formData.categoryId || null,
+        assignedTo: formData.assignedTo || null,
+        purchaseDate: formData.purchaseDate || null,
+        warrantyDate: formData.warrantyDate || null,
         notes: formData.notes || null,
       };
 
       if (editingDevice) {
-        const { error } = await supabase
-          .from('devices')
-          .update(deviceData)
-          .eq('id', editingDevice.id);
-        if (error) throw error;
+        await deviceService.updateDevice(editingDevice.id, deviceData);
         toast.success('Device updated successfully');
       } else {
-        const { error } = await supabase.from('devices').insert(deviceData);
-        if (error) throw error;
+        await deviceService.createDevice(deviceData);
         toast.success('Device created successfully');
       }
 
@@ -131,8 +128,7 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
 
     setLoading(true);
     try {
-      const { error } = await supabase.from('devices').delete().eq('id', deviceId);
-      if (error) throw error;
+      await deviceService.deleteDevice(deviceId);
 
       toast.success('Device deleted successfully');
       fetchData();
@@ -150,12 +146,12 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
     setFormData({
       name: device.name,
       model: device.model || '',
-      serial_number: device.serial_number || '',
+      serialNumber: device.serialNumber || '',
       status: device.status,
-      category_id: device.category_id || '',
-      assigned_to: device.assigned_to || '',
-      purchase_date: device.purchase_date || '',
-      warranty_date: device.warranty_date || '',
+      categoryId: device.categoryId || '',
+      assignedTo: device.assignedTo || '',
+      purchaseDate: device.purchaseDate || '',
+      warrantyDate: device.warrantyDate || '',
       notes: device.notes || '',
     });
     setShowForm(true);
@@ -167,12 +163,12 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
     setFormData({
       name: '',
       model: '',
-      serial_number: '',
+      serialNumber: '',
       status: 'active',
-      category_id: '',
-      assigned_to: '',
-      purchase_date: '',
-      warranty_date: '',
+      categoryId: '',
+      assignedTo: '',
+      purchaseDate: '',
+      warrantyDate: '',
       notes: '',
     });
   };
@@ -262,8 +258,8 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
                 </label>
                 <input
                   type="text"
-                  value={formData.serial_number}
-                  onChange={(e) => setFormData(prev => ({ ...prev, serial_number: e.target.value }))}
+                  value={formData.serialNumber}
+                  onChange={(e) => setFormData(prev => ({ ...prev, serialNumber: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -273,8 +269,8 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
                   Category
                 </label>
                 <select
-                  value={formData.category_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, category_id: e.target.value }))}
+                  value={formData.categoryId}
+                  onChange={(e) => setFormData(prev => ({ ...prev, categoryId: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Select category</option>
@@ -307,14 +303,14 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
                   Assigned To
                 </label>
                 <select
-                  value={formData.assigned_to}
-                  onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
+                  value={formData.assignedTo}
+                  onChange={(e) => setFormData(prev => ({ ...prev, assignedTo: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Not assigned</option>
                   {users.map(user => (
                     <option key={user.id} value={user.id}>
-                      {user.full_name}
+                      {user.fullName}
                     </option>
                   ))}
                 </select>
@@ -326,8 +322,8 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
                 </label>
                 <input
                   type="date"
-                  value={formData.purchase_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, purchase_date: e.target.value }))}
+                  value={formData.purchaseDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, purchaseDate: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -338,8 +334,8 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
                 </label>
                 <input
                   type="date"
-                  value={formData.warranty_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, warranty_date: e.target.value }))}
+                  value={formData.warrantyDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, warrantyDate: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -411,13 +407,13 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
                       {device.model && (
                         <div className="text-sm text-gray-500">{device.model}</div>
                       )}
-                      {device.serial_number && (
-                        <div className="text-xs text-gray-400">SN: {device.serial_number}</div>
+                      {device.serialNumber && (
+                        <div className="text-xs text-gray-400">SN: {device.serialNumber}</div>
                       )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {device.category_name || 'N/A'}
+                    {device.categoryName || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(device.status)}`}>
@@ -425,7 +421,7 @@ const DeviceManagement: React.FC<DeviceManagementProps> = ({ onDeviceChange }) =
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {device.assigned_user_name || 'Unassigned'}
+                    {device.assignedUserName || 'Unassigned'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                     <button

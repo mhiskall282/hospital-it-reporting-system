@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { supabase } from '../../lib/supabase';
+// import { supabase } from '../../lib/supabase'; // Using Firebase instead
+import { requestTypeService, departmentService } from '../../services/firebaseService';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -54,10 +55,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, type, onSu
 
   const fetchRequestTypes = async () => {
     try {
-      const { data } = await supabase
-        .from('request_types')
-        .select('*')
-        .order('name');
+      const data = await requestTypeService.getAllRequestTypes();
 
       if (data) {
         setRequestTypes(data);
@@ -78,10 +76,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, type, onSu
 
   const fetchDepartments = async () => {
     try {
-      const { data } = await supabase
-        .from('departments')
-        .select('*')
-        .order('name');
+      const data = await departmentService.getAllDepartments();
 
       if (data) {
         setDepartments(data);
@@ -97,21 +92,20 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, type, onSu
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('requests')
-        .insert({
-          user_id: profile.id,
-          request_type_id: formData.requestTypeId,
-          department_id: formData.departmentId || null,
-          title: formData.title,
-          description: formData.description,
-          priority: formData.priority,
-          urgency_level: formData.urgencyLevel,
-          patient_impact: formData.patientImpact,
-          estimated_downtime: formData.estimatedDowntime || null,
-        });
-
-      if (error) throw error;
+      // Import requestService at the top of the file
+      const { requestService } = await import('../../services/firebaseService');
+      
+      await requestService.createRequest({
+        userId: profile.id,
+        requestTypeId: formData.requestTypeId,
+        departmentId: formData.departmentId || null,
+        title: formData.title,
+        description: formData.description,
+        priority: formData.priority,
+        urgencyLevel: formData.urgencyLevel,
+        patientImpact: formData.patientImpact,
+        estimatedDowntime: formData.estimatedDowntime || null,
+      });
 
       const message = type === 'emergency' 
         ? 'Emergency request submitted! IT team will be notified immediately.'

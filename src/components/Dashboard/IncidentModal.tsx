@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { supabase } from '../../lib/supabase';
+// import { supabase } from '../../lib/supabase'; // Using Firebase instead
+import { deviceService, incidentService } from '../../services/firebaseService';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -49,13 +50,14 @@ const IncidentModal: React.FC<IncidentModalProps> = ({ isOpen, onClose, onSucces
 
   const fetchDevices = async () => {
     try {
-      const { data } = await supabase
-        .from('devices')
-        .select('id, name, model')
-        .order('name');
+      const data = await deviceService.getAllDevices();
 
       if (data) {
-        setDevices(data);
+        setDevices(data.map((device: any) => ({
+          id: device.id,
+          name: device.name,
+          model: device.model
+        })));
       }
     } catch (error) {
       console.error('Error fetching devices:', error);
@@ -68,20 +70,16 @@ const IncidentModal: React.FC<IncidentModalProps> = ({ isOpen, onClose, onSucces
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('incident_reports')
-        .insert({
-          device_id: formData.deviceId || null,
-          reported_by: profile.id,
-          incident_type: formData.incidentType,
-          severity: formData.severity,
-          description: formData.description,
-          impact_assessment: formData.impactAssessment || null,
-          immediate_action_taken: formData.immediateAction || null,
-          occurred_at: formData.occurredAt,
-        });
-
-      if (error) throw error;
+      await incidentService.createIncident({
+        deviceId: formData.deviceId || null,
+        reportedBy: profile.id,
+        incidentType: formData.incidentType,
+        severity: formData.severity,
+        description: formData.description,
+        impactAssessment: formData.impactAssessment || null,
+        immediateActionTaken: formData.immediateAction || null,
+        occurredAt: formData.occurredAt,
+      });
 
       toast.success('Incident report submitted successfully!');
       onSuccess();
